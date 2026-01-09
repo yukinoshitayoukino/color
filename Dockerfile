@@ -1,5 +1,6 @@
-# syntax=docker/dockerfile:1.4
-FROM python:3.9-slim
+# Используем Debian Bullseye для совместимости
+FROM python:3.9-slim-bullseye
+
 # Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y \
     gcc \
@@ -10,25 +11,24 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libgomp1 \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем requirements.txt первым для лучшего кэширования
+# Копируем и устанавливаем зависимости
 COPY requirements.txt .
-
-# Устанавливаем Python зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем остальные файлы
+# Копируем код
 COPY . .
 
-# Создаем необходимые директории
+# Создаем директории
 RUN mkdir -p static/uploads static/modified static/histograms templates
 
-# Открываем порт
+# Копируем шаблон если его нет
+COPY templates/index.html templates/
+
 EXPOSE 8000
 
-# Запускаем приложение
 CMD ["python", "main.py"]
