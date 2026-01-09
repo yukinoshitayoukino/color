@@ -3,30 +3,34 @@ from fastapi import FastAPI, File, UploadFile, Request, Form
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict
 import cv2
 import numpy as np
 from PIL import Image
 import io
 import base64
 import matplotlib
-
 matplotlib.use('Agg')  # Для работы без GUI
 import matplotlib.pyplot as plt
 
-app = FastAPI()
+app = FastAPI(title="RGB Image Editor", version="1.0.0")
+
+# Определяем пути
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+TEMPLATES_DIR = os.path.join(BASE_DIR, "templates")
 
 # Создаем папки
-os.makedirs("static/uploads", exist_ok=True)
-os.makedirs("templates", exist_ok=True)
-os.makedirs("static/modified", exist_ok=True)
-os.makedirs("static/histograms", exist_ok=True)
+os.makedirs(os.path.join(STATIC_DIR, "uploads"), exist_ok=True)
+os.makedirs(os.path.join(STATIC_DIR, "modified"), exist_ok=True)
+os.makedirs(os.path.join(STATIC_DIR, "histograms"), exist_ok=True)
+os.makedirs(TEMPLATES_DIR, exist_ok=True)
 
 # Монтируем статические файлы
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Настраиваем шаблоны
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 
 def adjust_color_channels(image_path: str, r_factor: float = 1.0,
@@ -495,7 +499,14 @@ def clear_static_files():
     shutil.rmtree('static', ignore_errors=True)
 
 
+# Главная функция запуска
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    print("Starting server on http://0.0.0.0:8000")
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8000,
+        log_level="info"
+    )
