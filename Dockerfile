@@ -1,6 +1,5 @@
-# Используем официальный образ Python
+# syntax=docker/dockerfile:1.4
 FROM python:3.9-slim
-
 # Устанавливаем системные зависимости
 RUN apt-get update && apt-get install -y \
     gcc \
