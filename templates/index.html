@@ -2,12 +2,16 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Image Upload</title>
+    <title>Image Upload App</title>
     <style>
         body {
             background-color: white;
-            margin: 20px;
-            font-family: Arial;
+            margin: 40px;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            margin-bottom: 20px;
         }
 
         .upload-btn {
@@ -20,29 +24,40 @@
             margin-bottom: 20px;
         }
 
-        .image-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 10px;
+        .images-container {
+            margin-top: 30px;
         }
 
-        .image-grid img {
-            width: 100%;
-            height: 150px;
-            object-fit: cover;
+        .image-item {
+            margin: 10px;
+            display: inline-block;
+        }
+
+        .image-item img {
+            max-width: 300px;
+            max-height: 200px;
+            border: 1px solid #ddd;
         }
     </style>
 </head>
 <body>
+    <h1>Загрузка изображений</h1>
+
     <form action="/upload" method="post" enctype="multipart/form-data">
         <input type="file" name="files" accept="image/*" multiple required>
         <button type="submit" class="upload-btn">Загрузить</button>
     </form>
 
-    <div class="image-grid">
-        {% for image_url in images %}
-            <img src="{{ image_url }}" alt="Изображение">
-        {% endfor %}
+    <div class="images-container">
+        {% if images %}
+            {% for image_url in images %}
+                <div class="image-item">
+                    <img src="{{ image_url }}" alt="Загруженное изображение">
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>Нет загруженных изображений</p>
+        {% endif %}
     </div>
 </body>
 </html>

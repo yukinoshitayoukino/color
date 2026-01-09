@@ -4,8 +4,6 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from typing import List
-import shutil
-
 app = FastAPI()
 
 # Создаем папки
@@ -43,12 +41,20 @@ async def upload_images(files: List[UploadFile] = File(...)):
         file_path = f"static/uploads/{file.filename}"
 
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+            # Читаем и сохраняем файл
+            content = await file.read()
+            buffer.write(content)
 
-    return {"message": "Загружено"}
-
+    # Возвращаем HTML с обновленным списком изображений
+    return HTMLResponse(content="""
+        <script>
+            window.location.href = "/";
+        </script>
+    """)
+def clear_static_files():
+    import shutil
+    shutil.rmtree('static')
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
