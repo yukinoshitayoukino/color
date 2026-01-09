@@ -4,6 +4,8 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+opencv-python = "*"
+pillow = "*"
 
 [dev-packages]
 
