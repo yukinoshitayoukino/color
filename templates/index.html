@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Редактор цветовых каналов</title>
+    <title>Редактор цветовых каналов с гистограммами</title>
     <style>
         * {
             box-sizing: border-box;
@@ -12,13 +12,13 @@
         }
 
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             line-height: 1.6;
             color: #333;
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
-            background-color: #f5f5f5;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
         }
 
         .container {
@@ -29,68 +29,92 @@
 
         .header {
             text-align: center;
-            padding: 20px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-left: 5px solid #3498db;
+            border-right: 5px solid #3498db;
         }
 
-        .sections {
+        .main-content {
             display: flex;
             flex-wrap: wrap;
             gap: 30px;
         }
 
-        .section {
+        .left-panel, .right-panel {
             flex: 1;
             min-width: 300px;
             background-color: white;
             padding: 25px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
         }
 
         h1 {
             color: #2c3e50;
             margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+            margin-bottom: 20px;
         }
 
         h2 {
             color: #34495e;
             margin-bottom: 20px;
             padding-bottom: 10px;
-            border-bottom: 2px solid #eee;
+            border-bottom: 3px solid #f0f0f0;
+            font-size: 1.5em;
+        }
+
+        .section {
+            margin-bottom: 30px;
         }
 
         .upload-form {
             margin-bottom: 20px;
             padding: 20px;
             background-color: #f8f9fa;
-            border-radius: 5px;
+            border-radius: 10px;
+            border: 2px dashed #ddd;
+            transition: all 0.3s ease;
+        }
+
+        .upload-form:hover {
+            border-color: #3498db;
+            background-color: #e8f4fc;
         }
 
         .image-gallery {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
             gap: 15px;
             margin-top: 15px;
         }
 
         .image-item {
             position: relative;
-            border-radius: 8px;
+            border-radius: 10px;
             overflow: hidden;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            background: white;
         }
 
         .image-item:hover {
             transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
         }
 
         .image-item img {
             width: 100%;
-            height: 150px;
+            height: 120px;
             object-fit: cover;
             display: block;
         }
@@ -103,6 +127,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-weight: 500;
         }
 
         .delete-btn {
@@ -120,52 +145,92 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .image-item:hover .delete-btn {
+            opacity: 1;
         }
 
         .delete-btn:hover {
             background-color: #c0392b;
+            transform: scale(1.1);
         }
 
-        .slider-container {
-            margin-bottom: 15px;
+        /* Слайдеры */
+        .sliders-container {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .slider-group {
+            margin-bottom: 20px;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
         }
 
         .slider-label {
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
+            align-items: center;
             font-weight: bold;
+            font-size: 16px;
         }
 
         .slider-value {
-            color: #3498db;
+            background: white;
+            padding: 5px 12px;
+            border-radius: 20px;
             font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            min-width: 60px;
+            text-align: center;
         }
 
         input[type="range"] {
             width: 100%;
-            height: 8px;
-            border-radius: 4px;
+            height: 12px;
+            border-radius: 6px;
             background: #ddd;
             outline: none;
-            opacity: 0.7;
-            transition: opacity .2s;
+            -webkit-appearance: none;
         }
 
-        input[type="range"]:hover {
-            opacity: 1;
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.2);
         }
 
-        .red-slider::-webkit-slider-thumb {
+        #red-slider::-webkit-slider-thumb {
             background: #e74c3c;
         }
 
-        .green-slider::-webkit-slider-thumb {
+        #green-slider::-webkit-slider-thumb {
             background: #2ecc71;
         }
 
-        .blue-slider::-webkit-slroll-thumb {
+        #blue-slider::-webkit-slider-thumb {
             background: #3498db;
+        }
+
+        /* Предпросмотр */
+        .preview-section {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin: 20px 0;
         }
 
         .preview-container {
@@ -175,67 +240,143 @@
 
         .preview-image {
             max-width: 100%;
-            max-height: 300px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            max-height: 250px;
+            border-radius: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
 
+        /* Гистограмма */
+        .histogram-container {
+            text-align: center;
+            margin: 20px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .histogram-image {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Статистика */
+        .stats-container {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 5px;
+            color: #fff;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        /* Кнопки */
         .buttons {
             display: flex;
-            gap: 10px;
+            gap: 15px;
             margin-top: 20px;
         }
 
         button {
-            padding: 12px 24px;
+            padding: 14px 28px;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 16px;
             font-weight: bold;
             transition: all 0.3s ease;
             flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
 
         .preview-btn {
-            background-color: #3498db;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
             color: white;
         }
 
         .preview-btn:hover {
-            background-color: #2980b9;
+            background: linear-gradient(135deg, #2980b9 0%, #1f6396 100%);
         }
 
         .save-btn {
-            background-color: #2ecc71;
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
             color: white;
         }
 
         .save-btn:hover {
-            background-color: #27ae60;
+            background: linear-gradient(135deg, #27ae60 0%, #219653 100%);
         }
 
         .upload-btn {
-            background-color: #9b59b6;
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
             color: white;
-            padding: 12px 24px;
-            border-radius: 5px;
+            padding: 14px 28px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 16px;
             border: none;
-            transition: background-color 0.3s ease;
+            transition: all 0.3s ease;
+            width: 100%;
+            font-weight: bold;
         }
 
         .upload-btn:hover {
-            background-color: #8e44ad;
+            background: linear-gradient(135deg, #8e44ad 0%, #7d3c98 100%);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
 
         input[type="file"] {
-            margin: 10px 0;
-            padding: 10px;
-            border: 2px dashed #ddd;
-            border-radius: 5px;
+            margin: 15px 0;
+            padding: 15px;
+            border: 2px dashed #3498db;
+            border-radius: 8px;
             width: 100%;
+            background: #f8f9fa;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        input[type="file"]:hover {
+            background: #e8f4fc;
+            border-color: #2980b9;
         }
 
         .empty-message {
@@ -243,10 +384,50 @@
             color: #7f8c8d;
             padding: 40px;
             font-style: italic;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px dashed #ddd;
         }
 
-        @media (max-width: 768px) {
-            .sections {
+        /* Вкладки */
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            color: #7f8c8d;
+        }
+
+        .tab:hover {
+            background: #e9ecef;
+            color: #3498db;
+        }
+
+        .tab.active {
+            background: #3498db;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
                 flex-direction: column;
             }
 
@@ -254,109 +435,206 @@
                 grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
             }
         }
+
+        @media (max-width: 768px) {
+            .buttons {
+                flex-direction: column;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Анимации */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>Редактор цветовых каналов RGB</h1>
-            <p>Загрузите изображение и настройте интенсивность красного, зеленого и синего каналов</p>
+        <div class="header fade-in">
+            <h1>ЛАБОРАТОРНАЯ РАБОТА № 1 «РАЗРАБОТКА ВЕБ-ПРИЛОЖЕНИЯ НА PYTHON» </h1>
+            <div class="subtitle">Вариант 9: Веб-приложение должно изменить интенсивность любой цветовой карты
+изображения или сразу нескольких, выдавать графики распределения цветов
+исходной картинки и новой картинки.  </div>
         </div>
 
-        <div class="sections">
-            <div class="section">
-                <h2>📤 Загрузка изображений</h2>
-                <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
-                    <input type="file" name="files" multiple accept="image/*">
-                    <button type="submit" class="upload-btn">Загрузить изображения</button>
-                </form>
+        <div class="main-content">
+            <!-- Левая панель -->
+            <div class="left-panel fade-in">
+                <div class="section">
+                    <h2>Загрузка изображений</h2>
+                    <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
+                        <input type="file" name="files" multiple accept="image/*" required>
+                        <button type="submit" class="upload-btn">
+                            Загрузить изображения
+                        </button>
+                    </form>
+                </div>
 
-                <h2>Загруженные изображения</h2>
-                {% if images %}
-                <div class="image-gallery">
-                    {% for image in images %}
-                    <div class="image-item" onclick="selectImage('{{ image.name }}', '{{ image.url }}')">
-                        <img src="{{ image.url }}" alt="{{ image.name }}">
-                        <div class="image-name">{{ image.name }}</div>
-                        <a href="/delete/uploads/{{ image.name }}" class="delete-btn" onclick="return confirm('Удалить изображение?')">×</a>
+                <div class="section">
+                    <h2>Загруженные изображения</h2>
+                    {% if images %}
+                    <div class="image-gallery">
+                        {% for image in images %}
+                        <div class="image-item" onclick="selectImage('{{ image.name }}', '{{ image.url }}')">
+                            <img src="{{ image.url }}" alt="{{ image.name }}" loading="lazy">
+                            <div class="image-name">{{ image.name }}</div>
+                            <a href="/delete/uploads/{{ image.name }}" class="delete-btn"
+                               onclick="return confirm('Удалить изображение?'); event.stopPropagation();">×</a>
+                        </div>
+                        {% endfor %}
                     </div>
-                    {% endfor %}
+                    {% else %}
+                    <div class="empty-message">
+                        Нет загруженных изображений
+                    </div>
+                    {% endif %}
                 </div>
-                {% else %}
-                <div class="empty-message">
-                    Нет загруженных изображений
-                </div>
-                {% endif %}
             </div>
 
-            <div class="section">
-                <h2>Настройка цветовых каналов</h2>
-                <div id="editor" style="display: none;">
-                    <div class="slider-container">
-                        <div class="slider-label">
-                            <span style="color: #e74c3c;">🔴 Красный канал</span>
-                            <span class="slider-value" id="red-value">1.0</span>
+            <!-- Правая панель -->
+            <div class="right-panel fade-in">
+                <div class="tabs">
+                    <div class="tab active" onclick="switchTab('editor')">✏️ Редактор</div>
+                    <div class="tab" onclick="switchTab('results')">📊 Результаты</div>
+                </div>
+
+                <!-- Вкладка редактора -->
+                <div id="editor-tab" class="tab-content active">
+                    <div id="editor" style="display: none;">
+                        <div class="section">
+                            <h2>Настройка цветовых каналов</h2>
+                            <div class="sliders-container">
+                                <div class="slider-group">
+                                    <div class="slider-header">
+                                        <div class="slider-label" style="color: #e74c3c;">
+                                            🔴 Красный канал
+                                        </div>
+                                        <div class="slider-value" id="red-value">1.0</div>
+                                    </div>
+                                    <input type="range" class="red-slider" id="red-slider"
+                                           min="0" max="3" step="0.1" value="1.0">
+                                </div>
+
+                                <div class="slider-group">
+                                    <div class="slider-header">
+                                        <div class="slider-label" style="color: #2ecc71;">
+                                            🟢 Зеленый канал
+                                        </div>
+                                        <div class="slider-value" id="green-value">1.0</div>
+                                    </div>
+                                    <input type="range" class="green-slider" id="green-slider"
+                                           min="0" max="3" step="0.1" value="1.0">
+                                </div>
+
+                                <div class="slider-group">
+                                    <div class="slider-header">
+                                        <div class="slider-label" style="color: #3498db;">
+                                            🔵 Синий канал
+                                        </div>
+                                        <div class="slider-value" id="blue-value">1.0</div>
+                                    </div>
+                                    <input type="range" class="blue-slider" id="blue-slider"
+                                           min="0" max="3" step="0.1" value="1.0">
+                                </div>
+                            </div>
                         </div>
-                        <input type="range" class="red-slider" id="red-slider"
-                               min="0" max="3" step="0.1" value="1.0">
-                    </div>
 
-                    <div class="slider-container">
-                        <div class="slider-label">
-                            <span style="color: #2ecc71;">🟢 Зеленый канал</span>
-                            <span class="slider-value" id="green-value">1.0</span>
+                        <div class="preview-section">
+                            <h3>Предпросмотр изменений</h3>
+                            <div class="preview-container">
+                                <img id="preview-image" class="preview-image" alt="Предпросмотр">
+                            </div>
                         </div>
-                        <input type="range" class="green-slider" id="green-slider"
-                               min="0" max="3" step="0.1" value="1.0">
-                    </div>
 
-                    <div class="slider-container">
-                        <div class="slider-label">
-                            <span style="color: #3498db;">🔵 Синий канал</span>
-                            <span class="slider-value" id="blue-value">1.0</span>
+                        <div class="histogram-container">
+                            <h3>📈 Гистограмма распределения цветов</h3>
+                            <img id="preview-histogram" class="histogram-image"
+                                 alt="Гистограмма" style="display: none;">
+                            <div id="histogram-placeholder" class="empty-message">
+                                Настройте параметры и нажмите "Обновить предпросмотр"
+                            </div>
                         </div>
-                        <input type="range" class="blue-slider" id="blue-slider"
-                               min="0" max="3" step="0.1" value="1.0">
+
+                        <div id="stats-preview" class="stats-container" style="display: none;">
+                            <h3 style="color: white; margin-top: 0;">📊 Статистика каналов</h3>
+                            <div id="stats-content"></div>
+                        </div>
+
+                        <div class="buttons">
+                            <button type="button" class="preview-btn" onclick="updatePreview()">
+                                🔄 Обновить предпросмотр
+                            </button>
+                            <button type="button" class="save-btn" onclick="saveModified()">
+                                💾 Сохранить изменения
+                            </button>
+                        </div>
+
+                        <input type="hidden" id="selected-image">
                     </div>
 
-                    <div class="preview-container">
-                        <img id="preview-image" class="preview-image" alt="Предпросмотр">
+                    <div id="no-selection" style="text-align: center; padding: 40px;">
+                        <div style="font-size: 48px; margin-bottom: 20px;"></div>
+                        <p style="color: #7f8c8d; font-size: 18px; font-weight: 500;">
+                            Выберите изображение из списка слева для начала редактирования
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Вкладка результатов -->
+                <div id="results-tab" class="tab-content">
+                    <div class="section">
+                        <h2>💾 Модифицированные изображения</h2>
+                        {% if modified_images %}
+                        <div class="image-gallery">
+                            {% for image in modified_images %}
+                            <div class="image-item">
+                                <img src="{{ image.url }}" alt="{{ image.name }}" loading="lazy">
+                                <div class="image-name">{{ image.name }}</div>
+                                <a href="/delete/modified/{{ image.name }}" class="delete-btn"
+                                   onclick="return confirm('Удалить изображение?')">×</a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="empty-message">
+                            Нет модифицированных изображений
+                        </div>
+                        {% endif %}
                     </div>
 
-                    <div class="buttons">
-                        <button type="button" class="preview-btn" onclick="updatePreview()">
-                            🔄 Обновить предпросмотр
-                        </button>
-                        <button type="button" class="save-btn" onclick="saveModified()">
-                            💾 Сохранить изменения
-                        </button>
+                    <div class="section">
+                        <h2>Сохраненные гистограммы</h2>
+                        {% if histogram_images %}
+                        <div class="image-gallery">
+                            {% for image in histogram_images %}
+                            <div class="image-item">
+                                <img src="{{ image.url }}" alt="{{ image.name }}" loading="lazy">
+                                <div class="image-name">{{ image.name }}</div>
+                                <a href="/delete/histograms/{{ image.name }}" class="delete-btn"
+                                   onclick="return confirm('Удалить гистограмму?')">×</a>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="empty-message">
+                            Нет сохраненных гистограмм
+                        </div>
+                        {% endif %}
                     </div>
-
-                    <input type="hidden" id="selected-image">
                 </div>
-
-                <div id="no-selection" style="text-align: center; padding: 40px;">
-                    <p style="color: #7f8c8d; font-style: italic;">
-                        Выберите изображение из списка слева для начала редактирования
-                    </p>
-                </div>
-
-                <h2>💾 Модифицированные изображения</h2>
-                {% if modified_images %}
-                <div class="image-gallery">
-                    {% for image in modified_images %}
-                    <div class="image-item">
-                        <img src="{{ image.url }}" alt="{{ image.name }}">
-                        <div class="image-name">{{ image.name }}</div>
-                        <a href="/delete/modified/{{ image.name }}" class="delete-btn" onclick="return confirm('Удалить изображение?')">×</a>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% else %}
-                <div class="empty-message">
-                    Нет модифицированных изображений
-                </div>
-                {% endif %}
             </div>
         </div>
     </div>
@@ -380,21 +658,72 @@
             document.getElementById('blue-slider').value = 1.0;
 
             updateSliderValues();
+
+            // Загружаем начальную гистограмму
+            loadInitialHistogram(imageName);
+        }
+
+        function switchTab(tabName) {
+            // Обновляем активные вкладки
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            if (tabName === 'editor') {
+                document.querySelector('.tab:nth-child(1)').classList.add('active');
+                document.getElementById('editor-tab').classList.add('active');
+            } else {
+                document.querySelector('.tab:nth-child(2)').classList.add('active');
+                document.getElementById('results-tab').classList.add('active');
+            }
         }
 
         function updateSliderValues() {
             document.getElementById('red-value').textContent =
-                document.getElementById('red-slider').value;
+                parseFloat(document.getElementById('red-slider').value).toFixed(1);
             document.getElementById('green-value').textContent =
-                document.getElementById('green-slider').value;
+                parseFloat(document.getElementById('green-slider').value).toFixed(1);
             document.getElementById('blue-value').textContent =
-                document.getElementById('blue-slider').value;
+                parseFloat(document.getElementById('blue-slider').value).toFixed(1);
+        }
+
+        async function loadInitialHistogram(imageName) {
+            try {
+                const response = await fetch(`/get-histogram?image_name=${encodeURIComponent(imageName)}`);
+                const result = await response.json();
+
+                if (result.success) {
+                    document.getElementById('preview-histogram').src = result.histogram;
+                    document.getElementById('preview-histogram').style.display = 'block';
+                    document.getElementById('histogram-placeholder').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Ошибка загрузки гистограммы:', error);
+            }
         }
 
         // Обновляем значения при изменении слайдеров
         document.getElementById('red-slider').addEventListener('input', updateSliderValues);
         document.getElementById('green-slider').addEventListener('input', updateSliderValues);
         document.getElementById('blue-slider').addEventListener('input', updateSliderValues);
+
+        // Обновляем предпросмотр при изменении слайдеров
+        let previewTimeout;
+        document.getElementById('red-slider').addEventListener('input', () => {
+            clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(updatePreview, 300);
+        });
+        document.getElementById('green-slider').addEventListener('input', () => {
+            clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(updatePreview, 300);
+        });
+        document.getElementById('blue-slider').addEventListener('input', () => {
+            clearTimeout(previewTimeout);
+            previewTimeout = setTimeout(updatePreview, 300);
+        });
 
         async function updatePreview() {
             if (!selectedImage) return;
@@ -418,17 +747,66 @@
                 const result = await response.json();
 
                 if (result.success) {
+                    // Обновляем изображение предпросмотра
                     document.getElementById('preview-image').src = result.preview_image;
+
+                    // Обновляем гистограмму
+                    document.getElementById('preview-histogram').src = result.preview_histogram;
+                    document.getElementById('preview-histogram').style.display = 'block';
+                    document.getElementById('histogram-placeholder').style.display = 'none';
+
+                    // Обновляем статистику
+                    updateStatsDisplay(result.stats, rFactor, gFactor, bFactor);
                 } else {
-                    alert('Ошибка предпросмотра: ' + result.message);
+                    showNotification('Ошибка предпросмотра: ' + result.message, 'error');
                 }
             } catch (error) {
-                alert('Ошибка при обновлении предпросмотра');
+                showNotification('Ошибка при обновлении предпросмотра', 'error');
             }
         }
 
+        function updateStatsDisplay(stats, rFactor, gFactor, bFactor) {
+            const statsContent = document.getElementById('stats-content');
+            const statsContainer = document.getElementById('stats-preview');
+
+            if (!stats || !stats.red) {
+                statsContainer.style.display = 'none';
+                return;
+            }
+
+            statsContainer.style.display = 'block';
+
+            let html = '<div class="stats-grid">';
+
+            const channels = [
+                { key: 'red', name: 'Красный', color: '#e74c3c', factor: rFactor },
+                { key: 'green', name: 'Зеленый', color: '#2ecc71', factor: gFactor },
+                { key: 'blue', name: 'Синий', color: '#3498db', factor: bFactor }
+            ];
+
+            channels.forEach(channel => {
+                const channelStats = stats[channel.key];
+                html += `
+                    <div class="stat-item" style="border-left: 4px solid ${channel.color}">
+                        <div class="stat-label">${channel.name} (×${parseFloat(channel.factor).toFixed(1)})</div>
+                        <div class="stat-value">${Math.round(channelStats.mean)}</div>
+                        <div class="stat-label">Средняя интенсивность</div>
+                        <div style="font-size: 12px; margin-top: 5px;">
+                            min: ${Math.round(channelStats.min)} | max: ${Math.round(channelStats.max)}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            statsContent.innerHTML = html;
+        }
+
         async function saveModified() {
-            if (!selectedImage) return;
+            if (!selectedImage) {
+                showNotification('Выберите изображение для редактирования', 'warning');
+                return;
+            }
 
             const rFactor = document.getElementById('red-slider').value;
             const gFactor = document.getElementById('green-slider').value;
@@ -441,6 +819,8 @@
             formData.append('b_factor', bFactor);
 
             try {
+                showNotification('Сохранение изображения...', 'info');
+
                 const response = await fetch('/adjust-colors', {
                     method: 'POST',
                     body: formData
@@ -449,17 +829,76 @@
                 const result = await response.json();
 
                 if (result.success) {
-                    alert('Изображение успешно сохранено!');
+                    showNotification('Изображение успешно сохранено!', 'success');
                     setTimeout(() => {
                         window.location.reload();
-                    }, 1000);
+                    }, 1500);
                 } else {
-                    alert('Ошибка сохранения: ' + result.message);
+                    showNotification('Ошибка сохранения: ' + result.message, 'error');
                 }
             } catch (error) {
-                alert('Ошибка при сохранении изображения');
+                showNotification('Ошибка при сохранении изображения', 'error');
             }
         }
+
+        function showNotification(message, type = 'info') {
+            // Создаем элемент уведомления
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 25px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 1000;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                animation: fadeIn 0.3s ease-out;
+            `;
+
+            // Устанавливаем цвет в зависимости от типа
+            switch(type) {
+                case 'success':
+                    notification.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+                    break;
+                case 'error':
+                    notification.style.background = 'linear-gradient(135deg, #e74c3c, #c0392b)';
+                    break;
+                case 'warning':
+                    notification.style.background = 'linear-gradient(135deg, #f39c12, #e67e22)';
+                    break;
+                default:
+                    notification.style.background = 'linear-gradient(135deg, #3498db, #2980b9)';
+            }
+
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            // Удаляем уведомление через 3 секунды
+            setTimeout(() => {
+                notification.style.animation = 'fadeIn 0.3s ease-out reverse';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Инициализация
+        document.addEventListener('DOMContentLoaded', function() {
+            // Добавляем CSS для анимации fadeIn
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-20px); }
+                    to { opacity: 1; transform: translateY(0); }
+                }
+            `;
+            document.head.appendChild(style);
+
+            // Обновляем значения слайдеров при загрузке
+            updateSliderValues();
+        });
     </script>
 </body>
 </html>
