@@ -1,15 +1,20 @@
 import os
-from fastapi import FastAPI, File, UploadFile, Request, Form
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from typing import List, Optional, Dict
-import cv2
-import numpy as np
-from PIL import Image
+import uuid
 import io
 import base64
+from pathlib import Path
+from typing import List, Optional, Dict
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from fastapi import FastAPI, File, UploadFile, Form, HTTPException, Depends, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+import numpy as np
+import cv2
+from PIL import Image, ImageDraw, ImageFont, ImageEnhance, ImageFilter
 import matplotlib
+
 matplotlib.use('Agg')  # Для работы без GUI
 import matplotlib.pyplot as plt
 
@@ -32,22 +37,15 @@ app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 # Настраиваем шаблоны
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
+# Пул потоков для параллельной обработки
+executor = ThreadPoolExecutor(max_workers=4)
+
 
 def adjust_color_channels(image_path: str, r_factor: float = 1.0,
                           g_factor: float = 1.0, b_factor: float = 1.0,
                           save_path: Optional[str] = None) -> str:
     """
     Изменяет цветовую карту изображения по каналам RGB.
-
-    Args:
-        image_path: Путь к исходному изображению
-        r_factor: Коэффициент для красного канала (1.0 - без изменений)
-        g_factor: Коэффициент для зеленого канала (1.0 - без изменений)
-        b_factor: Коэффициент для синего канала (1.0 - без изменений)
-        save_path: Путь для сохранения модифицированного изображения
-
-    Returns:
-        Путь к сохраненному изображению или base64 строку
     """
     # Читаем изображение
     image = cv2.imread(image_path)
@@ -87,14 +85,6 @@ def create_color_histograms(image_path: str, modified_image_path: Optional[str] 
                             r_factor: float = 1.0, g_factor: float = 1.0, b_factor: float = 1.0) -> Dict[str, str]:
     """
     Создает гистограммы распределения цветов для оригинального и модифицированного изображений.
-
-    Args:
-        image_path: Путь к оригинальному изображению
-        modified_image_path: Путь к модифицированному изображению (опционально)
-        r_factor, g_factor, b_factor: Коэффициенты для модификации
-
-    Returns:
-        Словарь с base64 строками гистограмм
     """
     # Читаем оригинальное изображение
     orig_image = cv2.imread(image_path)
@@ -296,6 +286,95 @@ def get_image_stats(image_path: str) -> Dict[str, Dict[str, float]]:
     return stats
 
 
+def add_watermark_to_image_sync(
+        image_path: str,
+        watermark_type: str = "text",
+        watermark_text: str = "WATERMARK",
+        watermark_file_path: Optional[str] = None,
+        font_size: int = 40,
+        opacity: float = 0.5,
+        color: str = "#FFFFFF"
+):
+    """Синхронная версия функции добавления водяного знака"""
+    # Открываем исходное изображение
+    with Image.open(image_path) as img:
+        img = img.convert("RGBA")
+        width, height = img.size
+
+        # Создаем слой для водяного знака
+        watermark = Image.new("RGBA", img.size, (0, 0, 0, 0))
+
+        if watermark_type == "text":
+            # Создаем контекст для рисования
+            draw = ImageDraw.Draw(watermark)
+
+            # Пытаемся загрузить шрифт
+            try:
+                font = ImageFont.truetype("arial.ttf", font_size)
+            except IOError:
+                try:
+                    # Попробуем найти стандартный шрифт
+                    font_paths = [
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+                        "C:/Windows/Fonts/arial.ttf"
+                    ]
+                    for font_path in font_paths:
+                        if os.path.exists(font_path):
+                            font = ImageFont.truetype(font_path, font_size)
+                            break
+                    else:
+                        font = ImageFont.load_default()
+                except:
+                    font = ImageFont.load_default()
+
+            # Рассчитываем размер текста
+            bbox = draw.textbbox((0, 0), watermark_text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+
+            # Позиция по центру
+            position = ((width - text_width) // 2, (height - text_height) // 2)
+
+            # Преобразуем HEX цвет в RGB
+            color_rgb = tuple(int(color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4))
+
+            # Рисуем текст
+            draw.text(position, watermark_text, font=font, fill=color_rgb)
+
+        elif watermark_type == "image" and watermark_file_path:
+            # Открываем изображение водяного знака
+            with Image.open(watermark_file_path) as watermark_img:
+                watermark_img = watermark_img.convert("RGBA")
+
+                # Масштабируем водяной знак
+                watermark_size = min(width, height) // 5
+                watermark_img.thumbnail((watermark_size, watermark_size))
+
+                # Позиция по центру
+                wm_width, wm_height = watermark_img.size
+                position = ((width - wm_width) // 2, (height - wm_height) // 2)
+
+                # Вставляем водяной знак
+                watermark.paste(watermark_img, position, watermark_img)
+
+        # Применяем прозрачность
+        if opacity < 1.0:
+            alpha = watermark.split()[3]
+            alpha = ImageEnhance.Brightness(alpha).enhance(opacity)
+            watermark.putalpha(alpha)
+
+        # Накладываем водяной знак
+        result = Image.alpha_composite(img, watermark)
+
+        # Сохраняем результат
+        output_filename = f"watermarked_{os.path.basename(image_path)}"
+        output_path = os.path.join("static", "modified", output_filename)
+        result.save(output_path, "PNG")
+
+        return output_path
+
+
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     # Получаем список изображений
@@ -494,9 +573,165 @@ async def delete_image(folder: str, filename: str):
         }, status_code=500)
 
 
-def clear_static_files():
-    import shutil
-    shutil.rmtree('static', ignore_errors=True)
+@app.post("/watermark")
+async def add_watermark(
+        file: UploadFile = File(...),
+        watermark_type: str = Form("text"),
+        watermark_text: Optional[str] = Form("WATERMARK"),
+        watermark_file: Optional[UploadFile] = File(None),
+        font_size: int = Form(40),
+        opacity: float = Form(0.5),
+        color: str = Form("#FFFFFF")
+):
+    """
+    Добавляет водяной знак в центр изображения
+    """
+    # Проверяем тип файла
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Файл должен быть изображением")
+
+    # Проверяем тип водяного знака
+    if watermark_type not in ["text", "image"]:
+        raise HTTPException(status_code=400, detail="Тип водяного знака должен быть 'text' или 'image'")
+
+    if watermark_type == "image" and not watermark_file:
+        raise HTTPException(status_code=400, detail="Для типа 'image' требуется файл водяного знака")
+
+    # Сохраняем временные файлы
+    temp_files = []
+
+    try:
+        # Сохраняем основное изображение
+        image_filename = f"temp_{uuid.uuid4().hex}_{file.filename}"
+        image_path = os.path.join("static", "uploads", image_filename)
+
+        with open(image_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+
+        temp_files.append(image_path)
+
+        watermark_file_path = None
+        if watermark_type == "image" and watermark_file:
+            # Сохраняем водяной знак
+            watermark_filename = f"watermark_{uuid.uuid4().hex}_{watermark_file.filename}"
+            watermark_file_path = os.path.join("static", "uploads", watermark_filename)
+
+            with open(watermark_file_path, "wb") as buffer:
+                content = await watermark_file.read()
+                buffer.write(content)
+
+            temp_files.append(watermark_file_path)
+
+        # Обрабатываем водяной знак в отдельном потоке
+        output_path = await asyncio.get_event_loop().run_in_executor(
+            executor,
+            add_watermark_to_image_sync,
+            image_path,
+            watermark_type,
+            watermark_text,
+            watermark_file_path,
+            font_size,
+            opacity,
+            color
+        )
+
+        # Получаем имя файла для ответа
+        output_filename = os.path.basename(output_path)
+
+        # Возвращаем ссылку на обработанный файл
+        return JSONResponse({
+            "success": True,
+            "message": "Водяной знак успешно добавлен",
+            "image_url": f"/static/modified/{output_filename}",
+            "filename": output_filename
+        })
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка при добавлении водяного знака: {str(e)}")
+    finally:
+        # Удаляем временные файлы
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+
+
+@app.post("/watermark/batch")
+async def add_watermark_batch(
+        files: List[UploadFile] = File(...),
+        watermark_type: str = Form("text"),
+        watermark_text: Optional[str] = Form("WATERMARK"),
+        watermark_file: Optional[UploadFile] = File(None),
+        font_size: int = Form(40),
+        opacity: float = Form(0.5),
+        color: str = Form("#FFFFFF")
+):
+    """
+    Пакетное добавление водяного знака на несколько изображений
+    """
+    if len(files) > 10:
+        raise HTTPException(status_code=400, detail="Максимум 10 файлов за раз")
+
+    temp_files = []
+    processed_files = []
+
+    try:
+        # Сохраняем водяной знак если нужно
+        watermark_file_path = None
+        if watermark_type == "image" and watermark_file:
+            watermark_filename = f"batch_watermark_{uuid.uuid4().hex}_{watermark_file.filename}"
+            watermark_file_path = os.path.join("static", "uploads", watermark_filename)
+
+            with open(watermark_file_path, "wb") as buffer:
+                content = await watermark_file.read()
+                buffer.write(content)
+
+            temp_files.append(watermark_file_path)
+
+        # Обрабатываем каждое изображение
+        for file in files:
+            if not file.content_type.startswith("image/"):
+                continue
+
+            # Сохраняем изображение
+            image_filename = f"batch_{uuid.uuid4().hex}_{file.filename}"
+            image_path = os.path.join("static", "uploads", image_filename)
+
+            with open(image_path, "wb") as buffer:
+                content = await file.read()
+                buffer.write(content)
+
+            temp_files.append(image_path)
+
+            # Обрабатываем водяной знак
+            output_path = await asyncio.get_event_loop().run_in_executor(
+                executor,
+                add_watermark_to_image_sync,
+                image_path,
+                watermark_type,
+                watermark_text,
+                watermark_file_path,
+                font_size,
+                opacity,
+                color
+            )
+
+            processed_files.append(os.path.basename(output_path))
+
+        return JSONResponse({
+            "success": True,
+            "message": f"Обработано {len(processed_files)} изображений",
+            "processed_files": processed_files,
+            "urls": [f"/static/modified/{filename}" for filename in processed_files]
+        })
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка пакетной обработки: {str(e)}")
+    finally:
+        # Удаляем временные файлы
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
 
 
 # Главная функция запуска
@@ -504,6 +739,13 @@ if __name__ == "__main__":
     import uvicorn
 
     print("Starting server on http://0.0.0.0:8000")
+    print("Доступные эндпоинты:")
+    print("- GET  / - главная страница")
+    print("- POST /upload - загрузка изображений")
+    print("- POST /adjust-colors - изменение цветов")
+    print("- POST /watermark - добавление водяного знака")
+    print("- POST /watermark/batch - пакетное добавление водяных знаков")
+
     uvicorn.run(
         app,
         host="0.0.0.0",

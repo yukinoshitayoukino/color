@@ -634,6 +634,53 @@
                         </div>
                         {% endif %}
                     </div>
+                    <!-- Форма для добавления водяного знака -->
+<div class="operation" id="watermark-section">
+    <h3>Добавить водяной знак</h3>
+    <form action="/watermark" method="post" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="watermarkFile">Изображение:</label>
+            <input type="file" id="watermarkFile" name="file" accept="image/*" required>
+        </div>
+
+        <div class="form-group">
+            <label for="watermarkType">Тип водяного знака:</label>
+            <select id="watermarkType" name="watermark_type" onchange="toggleWatermarkType()">
+                <option value="text">Текст</option>
+                <option value="image">Изображение</option>
+            </select>
+        </div>
+
+        <div class="form-group" id="textWatermarkGroup">
+            <label for="watermarkText">Текст водяного знака:</label>
+            <input type="text" id="watermarkText" name="watermark_text" value="WATERMARK">
+        </div>
+
+        <div class="form-group" id="imageWatermarkGroup" style="display: none;">
+            <label for="watermarkImageFile">Изображение водяного знака:</label>
+            <input type="file" id="watermarkImageFile" name="watermark_file" accept="image/*">
+        </div>
+
+        <div class="form-group">
+            <label for="fontSize">Размер шрифта:</label>
+            <input type="range" id="fontSize" name="font_size" min="10" max="100" value="40">
+            <span id="fontSizeValue">40</span>
+        </div>
+
+        <div class="form-group">
+            <label for="opacity">Прозрачность:</label>
+            <input type="range" id="opacity" name="opacity" min="0" max="100" value="50">
+            <span id="opacityValue">50%</span>
+        </div>
+
+        <div class="form-group">
+            <label for="watermarkColor">Цвет:</label>
+            <input type="color" id="watermarkColor" name="color" value="#FFFFFF">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Добавить водяной знак</button>
+    </form>
+</div>
                 </div>
             </div>
         </div>
@@ -900,5 +947,29 @@
             updateSliderValues();
         });
     </script>
+<script>
+function toggleWatermarkType() {
+    const type = document.getElementById('watermarkType').value;
+    const textGroup = document.getElementById('textWatermarkGroup');
+    const imageGroup = document.getElementById('imageWatermarkGroup');
+
+    if (type === 'text') {
+        textGroup.style.display = 'block';
+        imageGroup.style.display = 'none';
+    } else {
+        textGroup.style.display = 'none';
+        imageGroup.style.display = 'block';
+    }
+}
+
+// Обновление значений слайдеров
+document.getElementById('fontSize').addEventListener('input', function() {
+    document.getElementById('fontSizeValue').textContent = this.value;
+});
+
+document.getElementById('opacity').addEventListener('input', function() {
+    document.getElementById('opacityValue').textContent = this.value + '%';
+});
+</script>
 </body>
 </html>
