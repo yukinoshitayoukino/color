@@ -734,6 +734,68 @@ async def add_watermark_batch(
                 os.remove(temp_file)
 
 
+@app.post("/watermark-existing")
+async def add_watermark_to_existing(
+        image_name: str = Form(...),
+        watermark_type: str = Form("text"),
+        watermark_text: Optional[str] = Form("WATERMARK"),
+        watermark_file: Optional[UploadFile] = File(None),
+        font_size: int = Form(40),
+        opacity: float = Form(0.5),
+        color: str = Form("#FFFFFF")
+):
+    """
+    Добавляет водяной знак к уже загруженному изображению
+    """
+    # Проверяем существование изображения
+    image_path = f"static/uploads/{image_name}"
+    if not os.path.exists(image_path):
+        raise HTTPException(status_code=404, detail="Изображение не найдено")
+
+    temp_files = []
+
+    try:
+        watermark_file_path = None
+        if watermark_type == "image" and watermark_file:
+            # Сохраняем водяной знак временно
+            watermark_filename = f"temp_wm_{uuid.uuid4().hex}"
+            watermark_file_path = os.path.join("static", "uploads", watermark_filename)
+
+            with open(watermark_file_path, "wb") as buffer:
+                content = await watermark_file.read()
+                buffer.write(content)
+
+            temp_files.append(watermark_file_path)
+
+        # Добавляем водяной знак
+        output_path = await asyncio.get_event_loop().run_in_executor(
+            executor,
+            add_watermark_to_image_sync,
+            image_path,
+            watermark_type,
+            watermark_text,
+            watermark_file_path,
+            font_size,
+            opacity,
+            color
+        )
+
+        output_filename = os.path.basename(output_path)
+
+        return JSONResponse({
+            "success": True,
+            "message": "Водяной знак успешно добавлен",
+            "image_url": f"/static/modified/{output_filename}",
+            "filename": output_filename
+        })
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка: {str(e)}")
+    finally:
+        for temp_file in temp_files:
+            if os.path.exists(temp_file):
+                os.remove(temp_file)
+
 # Главная функция запуска
 if __name__ == "__main__":
     import uvicorn
