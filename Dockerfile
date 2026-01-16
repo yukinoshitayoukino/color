@@ -1,34 +1,31 @@
-# Используем Debian Bullseye для совместимости
-FROM python:3.9-slim-bullseye
+FROM python:3.9-slim
 
-# Устанавливаем системные зависимости
+# Устанавливаем системные зависимости для OpenCV
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender-dev \
-    libgomp1 \
-    && apt-get clean \
+    libgl1-mesa-glx \
     && rm -rf /var/lib/apt/lists/*
 
+# Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем и устанавливаем зависимости
+# Копируем зависимости
 COPY requirements.txt .
+
+# Устанавливаем Python зависимости
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем код
+# Копируем код приложения
 COPY . .
 
-# Создаем директории
-RUN mkdir -p static/uploads static/modified static/histograms templates
+# Создаем необходимые папки
+RUN mkdir -p static/uploads static/modified static/histograms static/watermarks templates
 
-# Копируем шаблон если его нет
-COPY templates/index.html templates/
-
+# Открываем порт
 EXPOSE 8000
 
+# Запускаем приложение
 CMD ["python", "main.py"]
