@@ -645,10 +645,28 @@
         .fade-in {
             animation: fadeIn 0.5s ease-out;
         }
+        /* Дополнительные стили для водяных знаков */
+        .watermark-hint {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        .watermark-badge {
+            background-color: #2196f3;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            position: absolute;
+            top: 5px;
+            left: 5px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+   <div class="container">
         <div class="header fade-in">
             <h1>ЛАБОРАТОРНАЯ РАБОТА № 1 «РАЗРАБОТКА ВЕБ-ПРИЛОЖЕНИЯ НА PYTHON» </h1>
             <div class="subtitle">Вариант 9: Веб-приложение должно изменить интенсивность любой цветовой карты
@@ -663,9 +681,24 @@
                     <h2>Загрузка изображений</h2>
                     <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
                         <input type="file" name="files" multiple accept="image/*" required>
+                        <input type="hidden" name="upload_type" value="images">
                         <button type="submit" class="upload-btn">
-                            Загрузить изображения
+                            📤 Загрузить изображения для редактирования
                         </button>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h2>Загрузка водяных знаков</h2>
+                    <form action="/upload" method="post" enctype="multipart/form-data" class="upload-form">
+                        <input type="file" name="files" multiple accept="image/*" required>
+                        <input type="hidden" name="upload_type" value="watermarks">
+                        <button type="submit" class="upload-btn">
+                            🏷️ Загрузить изображения для водяных знаков
+                        </button>
+                        <p class="watermark-hint">
+                            Совет: загружайте маленькие изображения, логотипы или PNG с прозрачностью
+                        </p>
                     </form>
                 </div>
 
@@ -684,7 +717,7 @@
                     </div>
                     {% else %}
                     <div class="empty-message">
-                        Нет загруженных изображений
+                        Нет загруженных изображений для редактирования
                     </div>
                     {% endif %}
                 </div>
@@ -696,6 +729,7 @@
                         {% for image in watermark_images %}
                         <div class="image-item watermark-image-selector"
                              onclick="selectWatermarkImage('{{ image.name }}', '{{ image.url }}')">
+                            <div class="watermark-badge">ВЗ</div>
                             <img src="{{ image.url }}" alt="{{ image.name }}" loading="lazy">
                             <div class="image-name">{{ image.name }}</div>
                             <a href="/delete/watermarks/{{ image.name }}" class="delete-btn"
@@ -705,7 +739,8 @@
                     </div>
                     {% else %}
                     <div class="empty-message">
-                        Нет загруженных водяных знаков
+                        Нет загруженных водяных знаков<br>
+                        <small>Загрузите маленькие изображения или логотипы выше</small>
                     </div>
                     {% endif %}
                 </div>

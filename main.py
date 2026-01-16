@@ -14,6 +14,7 @@ import matplotlib
 matplotlib.use('Agg')  # Для работы без GUI
 import matplotlib.pyplot as plt
 import random
+import tempfile
 
 app = FastAPI(title="RGB Image Editor", version="1.0.0")
 
@@ -79,31 +80,43 @@ def adjust_color_channels(image_path: str, r_factor: float = 1.0,
 def add_text_watermark_center(image_path: str, watermark_text: str = "Watermark",
                               opacity: float = 0.5, save_path: Optional[str] = None) -> str:
     """
-    Добавляет текстовый водяной знак по центру изображения.
+    Добавляет текстовый водяной знак по центру изображения с использованием OpenCV.
     """
+    # Читаем изображение
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"Не удалось загрузить изображение: {image_path}")
 
+    # Создаем копию для водяного знака
     watermarked = image.copy()
     height, width = image.shape[:2]
 
+    # Настройки шрифта OpenCV
     font = cv2.FONT_HERSHEY_SIMPLEX
-    # Автоматический подбор размера шрифта
+
+    # Автоматический расчет размера шрифта в зависимости от размера изображения
     font_scale = min(width, height) / 1000
-    font_scale = max(font_scale, 0.5)
+    font_scale = max(font_scale, 0.5)  # Минимальный размер
     thickness = max(int(font_scale * 2), 2)
 
     # Получаем размер текста
-    text_size = cv2.getTextSize(watermark_text, font, font_scale, thickness)[0]
+    text_size, baseline = cv2.getTextSize(watermark_text, font, font_scale, thickness)
 
     # Позиция по центру
     text_x = (width - text_size[0]) // 2
     text_y = (height + text_size[1]) // 2
 
-    # Создаем маску для текста
+    # Добавляем тень для лучшей читаемости
+    # Сначала рисуем черную тень с небольшим смещением
+    shadow_offset = 2
+    cv2.putText(watermarked, watermark_text,
+                (text_x + shadow_offset, text_y + shadow_offset),
+                font, font_scale, (0, 0, 0), thickness, cv2.LINE_AA)
+
+    # Создаем маску для основного текста с прозрачностью
     mask = np.zeros_like(image)
-    cv2.putText(mask, watermark_text, (text_x, text_y), font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
+    cv2.putText(mask, watermark_text, (text_x, text_y),
+                font, font_scale, (255, 255, 255), thickness, cv2.LINE_AA)
 
     # Смешиваем с прозрачностью
     cv2.addWeighted(mask, opacity, watermarked, 1.0, 0, watermarked)
@@ -112,6 +125,7 @@ def add_text_watermark_center(image_path: str, watermark_text: str = "Watermark"
         cv2.imwrite(save_path, watermarked)
         return save_path
     else:
+        # Конвертируем в base64 для отображения в браузере
         _, buffer = cv2.imencode('.jpg', watermarked)
         img_str = base64.b64encode(buffer).decode('utf-8')
         return f"data:image/jpeg;base64,{img_str}"
@@ -120,51 +134,86 @@ def add_text_watermark_center(image_path: str, watermark_text: str = "Watermark"
 def add_image_watermark_center(background_path: str, watermark_path: str,
                                opacity: float = 0.5, save_path: Optional[str] = None) -> str:
     """
-    Добавляет изображение-водяной знак по центру основного изображения.
+    Добавляет изображение-водяной знак по центру основного изображения с использованием OpenCV.
     """
+    # Читаем основное изображение
     background = cv2.imread(background_path)
     if background is None:
         raise ValueError(f"Не удалось загрузить изображение: {background_path}")
 
+    # Читаем водяной знак (с поддержкой альфа-канала)
     watermark = cv2.imread(watermark_path, cv2.IMREAD_UNCHANGED)
     if watermark is None:
         raise ValueError(f"Не удалось загрузить водяной знак: {watermark_path}")
 
     bg_height, bg_width = background.shape[:2]
 
-    # Масштабируем водяной знак до 20% от размера основного изображения
+    # Масштабируем водяной знак (20% от меньшей стороны основного изображения)
     scale_factor = 0.2
-    wm_height = int(bg_height * scale_factor)
-    wm_width = int(bg_width * scale_factor)
+    target_size = min(bg_width, bg_height) * scale_factor
 
-    # Сохраняем пропорции
-    wm_aspect = watermark.shape[1] / watermark.shape[0]
-    if wm_width / wm_height > wm_aspect:
-        wm_height = int(wm_width / wm_aspect)
+    # Сохраняем пропорции водяного знака
+    wm_height, wm_width = watermark.shape[:2]
+    wm_aspect = wm_width / wm_height
+
+    if wm_width > wm_height:
+        new_width = int(target_size)
+        new_height = int(target_size / wm_aspect)
     else:
-        wm_width = int(wm_height * wm_aspect)
+        new_height = int(target_size)
+        new_width = int(target_size * wm_aspect)
 
-    watermark_resized = cv2.resize(watermark, (wm_width, wm_height), interpolation=cv2.INTER_AREA)
+    # Масштабируем водяной знак с интерполяцией
+    if watermark.shape[2] == 4:  # Если есть альфа-канал
+        # Разделяем каналы
+        b, g, r, a = cv2.split(watermark)
+        rgb_watermark = cv2.merge([b, g, r])
+
+        # Масштабируем RGB и альфа-канал отдельно
+        rgb_resized = cv2.resize(rgb_watermark, (new_width, new_height),
+                                 interpolation=cv2.INTER_AREA)
+        alpha_resized = cv2.resize(a, (new_width, new_height),
+                                   interpolation=cv2.INTER_AREA)
+
+        # Собираем обратно
+        watermark_resized = cv2.merge([rgb_resized[:, :, 0],
+                                       rgb_resized[:, :, 1],
+                                       rgb_resized[:, :, 2],
+                                       alpha_resized])
+    else:
+        watermark_resized = cv2.resize(watermark, (new_width, new_height),
+                                       interpolation=cv2.INTER_AREA)
 
     result = background.copy()
+    wm_h, wm_w = watermark_resized.shape[:2]
 
-    # Позиционируем по центру
-    x_offset = (bg_width - wm_width) // 2
-    y_offset = (bg_height - wm_height) // 2
+    # Позиция по центру
+    x_offset = (bg_width - wm_w) // 2
+    y_offset = (bg_height - wm_h) // 2
 
-    # Если водяной знак имеет альфа-канал
-    if watermark_resized.shape[2] == 4:
-        wm_rgb = watermark_resized[:, :, :3]
-        wm_alpha = watermark_resized[:, :, 3] / 255.0
+    # Проверяем, что водяной знак помещается в изображение
+    if x_offset >= 0 and y_offset >= 0 and x_offset + wm_w <= bg_width and y_offset + wm_h <= bg_height:
 
-        for c in range(3):
-            result[y_offset:y_offset + wm_height, x_offset:x_offset + wm_width, c] = \
-                result[y_offset:y_offset + wm_height, x_offset:x_offset + wm_width, c] * (1 - wm_alpha * opacity) + \
-                wm_rgb[:, :, c] * wm_alpha * opacity
-    else:
-        roi = result[y_offset:y_offset + wm_height, x_offset:x_offset + wm_width]
-        result[y_offset:y_offset + wm_height, x_offset:x_offset + wm_width] = \
-            cv2.addWeighted(roi, 1, watermark_resized, opacity, 0)
+        if watermark_resized.shape[2] == 4:  # С альфа-каналом
+            # Нормализуем альфа-канал
+            alpha = watermark_resized[:, :, 3] / 255.0 * opacity
+            alpha = alpha[:, :, np.newaxis]  # Добавляем измерение для broadcasting
+
+            # Извлекаем RGB каналы
+            wm_rgb = watermark_resized[:, :, :3]
+
+            # Область на основном изображении, куда будем накладывать водяной знак
+            roi = result[y_offset:y_offset + wm_h, x_offset:x_offset + wm_w]
+
+            # Накладываем водяной знак с учетом альфа-канала и прозрачности
+            result[y_offset:y_offset + wm_h, x_offset:x_offset + wm_w] = \
+                roi * (1 - alpha) + wm_rgb * alpha
+
+        else:  # Без альфа-канала
+            # Создаем маску с прозрачностью
+            roi = result[y_offset:y_offset + wm_h, x_offset:x_offset + wm_w]
+            result[y_offset:y_offset + wm_h, x_offset:x_offset + wm_w] = \
+                cv2.addWeighted(roi, 1, watermark_resized, opacity, 0)
 
     if save_path:
         cv2.imwrite(save_path, result)
@@ -427,13 +476,18 @@ async def read_root(request: Request):
         "watermark_images": watermark_images
     })
 
+
 @app.post("/upload")
-async def upload_images(files: List[UploadFile] = File(...)):
+async def upload_images(
+    files: List[UploadFile] = File(...),
+    upload_type: str = Form("images")  # "images" или "watermarks"
+):
     for file in files:
         # Определяем папку для сохранения
-        folder = "uploads"
-        if "watermark" in file.filename.lower():
+        if upload_type == "watermarks":
             folder = "watermarks"
+        else:
+            folder = "uploads"
 
         file_path = f"static/{folder}/{file.filename}"
 
@@ -531,68 +585,6 @@ async def adjust_preview(
         }, status_code=500)
 
 
-@app.post("/add-watermark")
-async def add_watermark_to_image(
-        image_name: str = Form(...),
-        watermark_type: str = Form(...),  # "text" или "image"
-        watermark_text: Optional[str] = Form("Watermark"),
-        watermark_image: Optional[str] = Form(None),
-        opacity: float = Form(0.5)
-):
-    """Добавление водяного знака на изображение"""
-    try:
-        base_name = os.path.splitext(image_name)[0]
-        ext = os.path.splitext(image_name)[1]
-
-        random_suffix = random.randint(1000, 9999)
-
-        if watermark_type == "text":
-            watermarked_name = f"{base_name}_text_watermark_{random_suffix}{ext}"
-        else:
-            watermarked_name = f"{base_name}_image_watermark_{random_suffix}{ext}"
-
-        save_path = f"static/modified/{watermarked_name}"
-        source_path = f"static/uploads/{image_name}"
-
-        if watermark_type == "text":
-            # Текстовый водяной знак
-            result = add_text_watermark(
-                source_path,
-                watermark_text=watermark_text,
-                opacity=opacity,
-                save_path=save_path
-            )
-        else:
-            # Изображение-водяной знак
-            watermark_path = f"static/watermarks/{watermark_image}"
-            result = add_image_watermark(
-                source_path,
-                watermark_path,
-                opacity=opacity,
-                save_path=save_path
-            )
-
-        # Получаем статистику
-        orig_stats = get_image_stats(source_path)
-        watermark_stats = get_image_stats(save_path)
-
-        return JSONResponse({
-            "success": True,
-            "message": "Водяной знак успешно добавлен",
-            "image_url": f"/static/modified/{watermarked_name}",
-            "stats": {
-                "original": orig_stats,
-                "watermarked": watermark_stats
-            }
-        })
-
-    except Exception as e:
-        return JSONResponse({
-            "success": False,
-            "message": f"Ошибка при добавлении водяного знака: {str(e)}"
-        }, status_code=500)
-
-
 @app.post("/watermark-preview")
 async def watermark_preview(
         image_name: str = Form(...),
@@ -612,7 +604,6 @@ async def watermark_preview(
         temp_path = None
         if r_factor != 1.0 or g_factor != 1.0 or b_factor != 1.0:
             # Создаем временное изображение с коррекцией
-            import tempfile
             temp_file = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
             temp_path = temp_file.name
             temp_file.close()
@@ -631,13 +622,19 @@ async def watermark_preview(
                 save_path=None
             )
         else:
-            watermark_path = f"static/watermarks/{watermark_image}"
-            img_base64 = add_image_watermark_center(
-                image_to_watermark,
-                watermark_path,
-                opacity=opacity,
-                save_path=None
-            )
+            if not watermark_image:
+                # Если изображение не выбрано, возвращаем обычный предпросмотр
+                img_base64 = adjust_color_channels(
+                    source_path, r_factor, g_factor, b_factor, None
+                )
+            else:
+                watermark_path = f"static/watermarks/{watermark_image}"
+                img_base64 = add_image_watermark_center(
+                    image_to_watermark,
+                    watermark_path,
+                    opacity=opacity,
+                    save_path=None
+                )
 
         # Удаляем временный файл если он был создан
         if temp_path and os.path.exists(temp_path):
@@ -681,7 +678,6 @@ async def add_watermark_to_image(
         base_name = os.path.splitext(image_name)[0]
         ext = os.path.splitext(image_name)[1]
 
-        import random
         random_suffix = random.randint(1000, 9999)
 
         if watermark_type == "text":
@@ -695,7 +691,6 @@ async def add_watermark_to_image(
         # Сначала применяем коррекцию RGB
         temp_path = None
         if r_factor != 1.0 or g_factor != 1.0 or b_factor != 1.0:
-            import tempfile
             temp_file = tempfile.NamedTemporaryFile(suffix='.jpg', delete=False)
             temp_path = temp_file.name
             temp_file.close()
@@ -714,6 +709,12 @@ async def add_watermark_to_image(
                 save_path=save_path
             )
         else:
+            if not watermark_image:
+                return JSONResponse({
+                    "success": False,
+                    "message": "Выберите изображение для водяного знака"
+                }, status_code=400)
+
             watermark_path = f"static/watermarks/{watermark_image}"
             result = add_image_watermark_center(
                 image_to_watermark,
@@ -758,6 +759,7 @@ async def add_watermark_to_image(
             "success": False,
             "message": f"Ошибка при добавлении водяного знака: {str(e)}"
         }, status_code=500)
+
 
 @app.get("/get-histogram")
 async def get_histogram(image_name: str):
